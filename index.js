@@ -7,11 +7,30 @@ function stripJsonComments(data) {
   return data.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => (g ? "" : m));
 }
 
+function loadConfig(configPath) {
+  const { extends: extendsPath, ...restConfig } = JSON.parse(
+    stripJsonComments(fs.readFileSync(configPath, "utf8")),
+  );
+
+  if (extendsPath) {
+    const { compilerOptions: parentCompilerOptions = {}, ...restParentConfig } = loadConfig(path.resolve(path.dirname(configPath), extendsPath));
+    return {
+      ...restParentConfig,
+      ...restConfig,
+      compilerOptions: {
+        ...parentCompilerOptions,
+        ...restConfig.compilerOptions,
+      },
+    };
+  }
+
+  return restConfig;
+}
+
 module.exports = (relativeTsconfigPath = "./tsconfig.json") => {
   const absTsconfigPath = path.resolve(process.cwd(), relativeTsconfigPath);
-  let tsconfigData = fs.readFileSync(absTsconfigPath, "utf8");
-  tsconfigData = stripJsonComments(tsconfigData);
-  const { compilerOptions } = JSON.parse(tsconfigData);
+
+  const { compilerOptions } = loadConfig(absTsconfigPath);
 
   const pathKeys = Object.keys(compilerOptions.paths);
   const re = new RegExp(`^(${pathKeys.join("|")})`);
